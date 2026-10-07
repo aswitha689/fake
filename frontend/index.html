@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Explainable Fake News Detector</title>
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --text: #0f172a;
+      --text-muted: #64748b;
+      --border: #e2e8f0;
+      --fake: #ef4444;
+      --real: #10b981;
+      --warning: #f59e0b;
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      padding: 24px;
+    }
+    .container { max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
+    header h1 { font-size: 1.75rem; font-weight: 700; color: #1e293b; }
+    header p { color: var(--text-muted); font-size: 0.95rem; }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    .card-title { font-size: 1.1rem; font-weight: 600; margin-bottom: 12px; }
+    textarea {
+      width: 100%;
+      height: 110px;
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 1rem;
+      resize: vertical;
+      outline: none;
+    }
+    textarea:focus { border-color: var(--primary); }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 9px 18px;
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-weight: 500;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+    .btn:hover { background: var(--primary-hover); }
+    .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .btn-secondary { background: #e2e8f0; color: #334155; }
+    .btn-secondary:hover { background: #cbd5e1; }
+    .btn-danger { background: #fee2e2; color: #b91c1c; padding: 4px 8px; font-size: 0.85rem; }
+    .btn-danger:hover { background: #fecaca; }
+    .alert {
+      padding: 12px;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      margin-top: 12px;
+    }
+    .alert-error { background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; }
+    .alert-warning { background: #fffbeb; border: 1px solid #fde68a; color: #b45309; }
+    .badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 9999px;
+      font-size: 0.85rem;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+    .badge-fake { background: #fee2e2; color: var(--fake); }
+    .badge-real { background: #d1fae5; color: var(--real); }
+    .badge-warning { background: #fef3c7; color: var(--warning); }
+    .progress-bar-bg {
+      width: 100%;
+      height: 10px;
+      background: #e2e8f0;
+      border-radius: 5px;
+      overflow: hidden;
+      margin: 8px 0;
+    }
+    .progress-bar-fill { height: 100%; transition: width 0.3s ease; }
+    .highlighted-text {
+      padding: 14px;
+      background: #f1f5f9;
+      border-radius: 6px;
+      font-size: 1.05rem;
+      line-height: 1.8;
+      margin-top: 10px;
+    }
+    .word-chip {
+      padding: 2px 4px;
+      border-radius: 3px;
+      font-weight: 600;
+    }
+    .legend {
+      display: flex;
+      gap: 16px;
+      font-size: 0.85rem;
+      margin-top: 8px;
+      color: var(--text-muted);
+    }
+    .legend-item { display: flex; align-items: center; gap: 6px; }
+    .legend-box { width: 14px; height: 14px; border-radius: 3px; }
+    .table-container { overflow-x: auto; margin-top: 12px; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; text-align: left; }
+    th, td { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+    th { background: #f8fafc; color: var(--text-muted); font-weight: 600; }
+    .fact-item {
+      padding: 10px;
+      background: #f8fafc;
+      border-left: 3px solid var(--primary);
+      margin-top: 8px;
+      border-radius: 0 4px 4px 0;
+    }
+    .fact-item a { color: var(--primary); text-decoration: none; font-size: 0.85rem; }
+    .fact-item a:hover { text-decoration: underline; }
+    .feedback-group { display: flex; gap: 10px; align-items: center; margin-top: 12px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Explainable Fake News Detector</h1>
+      <p>Transparent AI detection with token-level explanations and fact verification</p>
+    </header>
+
+    <div class="card">
+      <div class="card-title">Analyze Statement</div>
+      <textarea id="inputText" placeholder="Paste or type statement here..."></textarea>
+      <button id="analyzeBtn" class="btn" onclick="analyzeStatement()">Analyze</button>
+      <div id="errorAlert" class="alert alert-error" style="display: none;"></div>
+    </div>
+
+    <div id="resultSection" style="display: none;" class="card">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+        <div class="card-title" style="margin: 0;">Analysis Result</div>
+        <div>
+          <span id="labelBadge" class="badge"></span>
+          <span id="reviewBadge" class="badge badge-warning" style="display: none;">Needs Review</span>
+        </div>
+      </div>
+
+      <div style="margin-bottom: 16px;">
+        <div style="display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--text-muted);">
+          <span>Confidence</span>
+          <span id="confidenceValue">0%</span>
+        </div>
+        <div class="progress-bar-bg">
+          <div id="confidenceBar" class="progress-bar-fill"></div>
+        </div>
+      </div>
+
+      <div id="reviewWarning" class="alert alert-warning" style="display: none;">
+        <strong>Confidence Below 60%:</strong> This statement has been flagged as "Needs Review" for manual inspection.
+      </div>
+
+      <div style="margin-top: 16px;">
+        <strong>Highlighted Explanation:</strong>
+        <div class="legend">
+          <div class="legend-item"><div class="legend-box" style="background: rgba(239, 68, 68, 0.6);"></div> Pushes FAKE</div>
+          <div class="legend-item"><div class="legend-box" style="background: rgba(16, 185, 129, 0.6);"></div> Pushes REAL</div>
+        </div>
+        <div id="highlightedContainer" class="highlighted-text"></div>
+      </div>
+
+      <div id="factSection" style="margin-top: 20px; display: none;">
+        <strong>External Fact-Check Verification:</strong>
+        <div id="factList"></div>
+      </div>
+
+      <div style="margin-top: 20px; border-top: 1px solid var(--border); padding-top: 12px;">
+        <span style="font-size: 0.9rem; font-weight: 600;">Prediction Feedback:</span>
+        <div class="feedback-group">
+          <button class="btn btn-secondary" onclick="sendFeedback('CORRECT')">Correct</button>
+          <button class="btn btn-secondary" onclick="sendFeedback('WRONG')">Wrong</button>
+          <span id="feedbackStatus" style="font-size: 0.85rem; color: var(--text-muted);"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Recent History</div>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Statement</th>
+              <th>Status</th>
+              <th>Label</th>
+              <th>Confidence</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="historyBody">
+            <tr><td colspan="6" style="text-align: center; color: var(--text-muted);">No history yet.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = "http://127.0.0.1:8000";
+    let currentPredictionId = null;
+
+    async function analyzeStatement() {
+      const text = document.getElementById("inputText").value.trim();
+      const btn = document.getElementById("analyzeBtn");
+      const err = document.getElementById("errorAlert");
+      const resSec = document.getElementById("resultSection");
+
+      err.style.display = "none";
+      if (!text) {
+        err.innerText = "Please enter some text to analyze.";
+        err.style.display = "block";
+        return;
+      }
+
+      btn.disabled = true;
+      btn.innerText = "Analyzing...";
+
+      try {
+        const res = await fetch(`${API_BASE}/predict`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text })
+        });
+
+        if (!res.ok) {
+          throw new Error(`API error: ${res.statusText}`);
+        }
+
+        const data = await res.json();
+        renderResult(data, text);
+        loadHistory();
+      } catch (e) {
+        err.innerText = `Error: ${e.message}. Ensure backend is running.`;
+        err.style.display = "block";
+      } finally {
+        btn.disabled = false;
+        btn.innerText = "Analyze";
+      }
+    }
+
+    function renderResult(data, rawText) {
+      currentPredictionId = data.prediction_id;
+      document.getElementById("feedbackStatus").innerText = "";
+      document.getElementById("resultSection").style.display = "block";
+
+      const badge = document.getElementById("labelBadge");
+      const reviewBadge = document.getElementById("reviewBadge");
+      const reviewWarning = document.getElementById("reviewWarning");
+
+      badge.innerText = data.label;
+      if (data.label === "FAKE") {
+        badge.className = "badge badge-fake";
+      } else {
+        badge.className = "badge badge-real";
+      }
+
+      const isReview = data.status === "Needs Review";
+      reviewBadge.style.display = isReview ? "inline-block" : "none";
+      reviewWarning.style.display = isReview ? "block" : "none";
+
+      const confPct = Math.round(data.confidence * 100);
+      document.getElementById("confidenceValue").innerText = `${confPct}%`;
+      const bar = document.getElementById("confidenceBar");
+      bar.style.width = `${confPct}%`;
+      bar.style.background = data.label === "FAKE" ? "var(--fake)" : "var(--real)";
+
+      renderExplanation(rawText, data.explanation || []);
+      renderGrounding(data.grounding);
+    }
+
+    function renderExplanation(text, explanation) {
+      const container = document.getElementById("highlightedContainer");
+      if (!explanation || explanation.length === 0) {
+        container.innerText = text;
+        return;
+      }
+
+      const map = new Map();
+      let maxWeight = 0.001;
+      explanation.forEach(item => {
+        const w = Math.abs(item.weight);
+        if (w > maxWeight) maxWeight = w;
+        map.set(item.word.toLowerCase(), item);
+      });
+
+      // Split text preserving tokens and punctuation
+      const tokens = text.split(/(\s+|[^\w\s]+)/);
+      container.innerHTML = "";
+
+      tokens.forEach(tok => {
+        const cleanTok = tok.trim().toLowerCase();
+        if (map.has(cleanTok)) {
+          const item = map.get(cleanTok);
+          const intensity = Math.min(Math.max(Math.abs(item.weight) / maxWeight, 0.25), 0.85);
+          const color = item.direction === "FAKE" 
+            ? `rgba(239, 68, 68, ${intensity})` 
+            : `rgba(16, 185, 129, ${intensity})`;
+          
+          const span = document.createElement("span");
+          span.className = "word-chip";
+          span.style.backgroundColor = color;
+          span.title = `${item.word} (${item.direction}: ${item.weight})`;
+          span.innerText = tok;
+          container.appendChild(span);
+        } else {
+          container.appendChild(document.createTextNode(tok));
+        }
+      });
+    }
+
+    function renderGrounding(grounding) {
+      const factSec = document.getElementById("factSection");
+      const factList = document.getElementById("factList");
+      factList.innerHTML = "";
+
+      if (grounding && grounding.available && grounding.matches && grounding.matches.length > 0) {
+        factSec.style.display = "block";
+        grounding.matches.forEach(m => {
+          const div = document.createElement("div");
+          div.className = "fact-item";
+          div.innerHTML = `
+            <div><strong>Claim:</strong> ${escapeHtml(m.claim)}</div>
+            <div><strong>Rating:</strong> <span style="color:#b91c1c;">${escapeHtml(m.rating)}</span> | <strong>Publisher:</strong> ${escapeHtml(m.publisher)}</div>
+            ${m.url ? `<a href="${escapeHtml(m.url)}" target="_blank" rel="noopener">Read source check &rarr;</a>` : ""}
+          `;
+          factList.appendChild(div);
+        });
+      } else {
+        factSec.style.display = "none";
+      }
+    }
+
+    async function sendFeedback(userLabel) {
+      if (!currentPredictionId) return;
+      const statusSpan = document.getElementById("feedbackStatus");
+      try {
+        const res = await fetch(`${API_BASE}/feedback`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prediction_id: currentPredictionId,
+            user_label: userLabel,
+            comment: ""
+          })
+        });
+        if (res.ok) {
+          statusSpan.innerText = `Recorded as ${userLabel}. Thank you!`;
+        }
+      } catch (e) {
+        statusSpan.innerText = "Failed to submit feedback.";
+      }
+    }
+
+    async function loadHistory() {
+      const tbody = document.getElementById("historyBody");
+      try {
+        const res = await fetch(`${API_BASE}/history`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!data || data.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted);">No history yet.</td></tr>';
+          return;
+        }
+        tbody.innerHTML = "";
+        data.forEach(item => {
+          const tr = document.createElement("tr");
+          const conf = item.confidence != null ? `${Math.round(item.confidence * 100)}%` : "-";
+          const snippet = item.text.length > 40 ? item.text.substring(0, 40) + "..." : item.text;
+          tr.innerHTML = `
+            <td>#${item.statement_id}</td>
+            <td title="${escapeHtml(item.text)}">${escapeHtml(snippet)}</td>
+            <td><span class="badge ${item.status === 'Needs Review' ? 'badge-warning' : ''}">${escapeHtml(item.status)}</span></td>
+            <td><strong>${escapeHtml(item.label || "-")}</strong></td>
+            <td>${conf}</td>
+            <td><button class="btn btn-danger" onclick="deleteHistory(${item.statement_id})">Delete</button></td>
+          `;
+          tbody.appendChild(tr);
+        });
+      } catch (e) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted);">Failed to load history.</td></tr>';
+      }
+    }
+
+    async function deleteHistory(id) {
+      try {
+        await fetch(`${API_BASE}/statement/${id}`, { method: "DELETE" });
+        loadHistory();
+      } catch (e) {
+        alert("Failed to delete record.");
+      }
+    }
+
+    function escapeHtml(str) {
+      if (!str) return "";
+      return String(str).replace(/[&<>"']/g, m => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+      })[m]);
+    }
+
+    window.addEventListener("DOMContentLoaded", loadHistory);
+  </script>
+</body>
+</html>
